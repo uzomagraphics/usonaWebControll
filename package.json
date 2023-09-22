@@ -1,0 +1,28 @@
+{
+  "name": "nodereact",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "author": "Avanthika",
+  "license": "ISC",
+  "dependencies": {
+    "uuid": "^9.0.0",
+    "ws": "^8.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uzomagraphics/usonaWebControll.git"
+  },
+  "bugs": {
+    "url": "https://github.com/uzomagraphics/usonaWebControll/issues"
+  },
+  "homepage": "https://github.com/uzomagraphics/usonaWebControll#readme",
+  "description": ""
+}
