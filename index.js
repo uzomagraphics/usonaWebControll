@@ -2,7 +2,7 @@ const { WebSocket, WebSocketServer } = require('ws');
 const http = require('http');
 const uuidv4 = require('uuid').v4;
 
-// Spinning the http server and the WebSocket server.
+// Starting the server.
 const server = http.createServer();
 const wsServer = new WebSocketServer({ server });
 const port = 8000;
@@ -10,11 +10,9 @@ server.listen(port, () => {
   console.log(`WebSocket server is running on port ${port}`);
 });
 
-// I'm maintaining all active connections in this object
+
 const clients = {};
-// I'm maintaining all active users in this object
 const users = {};
-// User activity history.
 let userActivity = [];
 
 // Event types
@@ -37,10 +35,15 @@ function broadcastMessage(json, id) {
 }
 
 function handleMessage(message, userId) {
-  const dataFromClient = JSON.parse(message.toString());
-  const json = { type: dataFromClient.type };
-  console.log(dataFromClient)
-  broadcastMessage(dataFromClient, userId);
+  if (message == "pong"){
+    console.log("Pong received")
+  }
+  else{
+    const dataFromClient = JSON.parse(message.toString());
+    console.log(dataFromClient)
+    broadcastMessage(dataFromClient, userId);
+  }
+  
 }
 
 function handleDisconnect(userId) {
@@ -51,7 +54,6 @@ function handleDisconnect(userId) {
     json.data = { users, userActivity };
     delete clients[userId];
     delete users[userId];
-    broadcastMessage(json);
 }
 
 // New connection received
@@ -64,4 +66,26 @@ wsServer.on('connection', function(connection) {
   connection.on('message', (message) => handleMessage(message, userId));
   //Connection closed
   connection.on('close', () => handleDisconnect(userId));
+
+  //keepServerAlive();
 });
+
+
+/**
+ * Sends a ping message to all connected clients every 50 seconds
+ */
+/*const keepServerAlive = () => {
+  keepAliveId = setInterval(() => {
+    for(let userId in clients) {
+      if (userId){
+        let client = clients[userId];
+        if(client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({ 
+            "ping" : "ping"}));
+        }
+      }
+    };
+    console.log("sent ping")
+  }, 50000);
+};
+*/
