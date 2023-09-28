@@ -22,7 +22,9 @@ const ModbusServer = new modbus.server.TCP(netServer, {
 ModbusServer.on('connection', (client) => {
   console.log('Modbus connection successful')
 });
-
+/*
+I think this will print the servo messages
+*/
 ModbusServer.on('postWriteMultipleRegisters', (value) => {
   console.log('Write multiple registers: ',value._body)
 });
@@ -32,6 +34,10 @@ netServer.listen(netPort, () => {
 });
 
 function modbusButton1() {
+  /*
+I think this is how we send messages
+*/
+  //ModbusServer.holding.writeUInt16BE(1,8)
   console.log("Modbus button 1");
 }
 
