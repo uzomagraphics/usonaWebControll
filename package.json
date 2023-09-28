@@ -10,6 +10,7 @@
   "author": "Avanthika",
   "license": "ISC",
   "dependencies": {
+    "jsmodbus": "^4.0.6",
     "swiper": "^10.3.0",
     "uuid": "^9.0.0",
     "ws": "^8.11.0"
