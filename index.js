@@ -194,12 +194,26 @@ function handleDisconnect(userId) {
     delete users[userId];
 }
 
+function handleConnection(id) {
+  for(let userId in clients) {
+    if (userId != id){
+      let client = clients[userId];
+      if(client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({ 
+          "new_connection" : 1} 
+        ));
+      }
+    }
+  };
+}
+
 // New connection received
 wsServer.on('connection', function(connection) {
   const userId = uuidv4();
   console.log('Recieved a new connection');
   clients[userId] = connection;
   console.log(`${userId} connected.`);
+  handleConnection(userId);
   //Message received
   connection.on('message', (message) => handleMessage(message, userId));
   //Connection closed
