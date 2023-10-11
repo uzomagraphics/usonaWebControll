@@ -14,7 +14,7 @@ server.listen(port, () => {
 const net = require('net');
 const modbus = require('jsmodbus');
 const netServer = new net.Server();
-const netPort = 502;
+const netPort = 102;
 const ModbusServer = new modbus.server.TCP(netServer, {
 
 });
