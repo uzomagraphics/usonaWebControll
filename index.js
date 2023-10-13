@@ -100,6 +100,9 @@ const clients = {};
 const users = {};
 let userActivity = [];
 
+var TD = 0;
+var TDid = '';
+
 // Event types
 const typesDef = {
   PUBLIC_EVENT: 'public_event',
@@ -119,9 +122,25 @@ function broadcastMessage(json, id) {
   };
 }
 
+setInterval(function(){
+  if (TD == 0){
+    broadcastMessage({'TD':'DOWN'}, TDid);
+  }
+  else{
+    broadcastMessage({'TD':'UP'}, TDid);
+  }
+  TD = 0;
+  }, 500);
+
+function handleTD(id) {
+  TD = 1;
+  TDid = id;
+
+}
+
 function handleMessage(message, userId) {
-  if (message == "pong"){
-    console.log("Pong received")
+  if (message == "TD_ping"){
+    handleTD(userId);
   }
   else{
     const dataFromClient = JSON.parse(message.toString());
