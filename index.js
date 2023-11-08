@@ -2,7 +2,7 @@ const { WebSocket, WebSocketServer } = require('ws');
 const http = require('http');
 const uuidv4 = require('uuid').v4;
 
-// Starting the server.
+// Starting the Websocket server.
 const server = http.createServer();
 const wsServer = new WebSocketServer({ server });
 const port = 8000;
@@ -10,7 +10,7 @@ server.listen(port, () => {
   console.log(`WebSocket server is running on port ${port}`);
 });
 
-/////////MODBUS/////////////
+/////////MODBUS client/////////////
 const modbus = require('jsmodbus');
 const net = require('net');
 const socket = new net.Socket();
@@ -19,20 +19,23 @@ const options = {
   'port': '102'
 };
 const client = new modbus.client.TCP(socket);
+
 // Connect the Modbus TCP socket
 socket.connect(options);
+
 // Error event listener for the socket
 socket.on('error', function (err) {
   console.error('Socket encountered an error:', err.message);
   // Depending on the error you might want to reconnect or handle it differently
 });
 
-let isMovementInterrupted = false;
-
+let isMovementInterrupted = false; //flag for stop button
 
 const max_error = 50; // Adjust this value as needed
-const max_position = 1000; // Maximum allowed position
-const min_position = 0;   // Minimum allowed position
+const max_position = 4000; // Maximum allowed position
+const min_position = 1500;   // Minimum allowed position
+const position1 = 1500;   // Low position
+const position2 = 4000;   // High posistion
 
 function parseSignedInt16(value) {
   if (value >= 0x8000) {
@@ -41,6 +44,7 @@ function parseSignedInt16(value) {
   return value;
 }
 
+// Async function to move a Modbus-controlled device to a target position
 async function moveToTargetPosition(rawTargetPosition) {
   const targetPosition = parseSignedInt16(rawTargetPosition); // Parse the target position as signed int16
   try {
@@ -67,7 +71,6 @@ async function moveToTargetPosition(rawTargetPosition) {
     let servoIndices = [0, 2, 4, 6];
     let servoValues = servoIndices.map(index => parseSignedInt16(positions.response._body.valuesAsArray[index]));
     let currentPosition = servoValues[0]; // Assuming first position is the current one
-
 
     if (currentPosition > max_position + max_error || currentPosition < min_position - max_error) {
       console.error(`Current position is out of the allowed range plus the error margin. Must be between ${min_position - max_error} and ${max_position + max_error}.`);
@@ -162,53 +165,6 @@ async function moveToTargetPosition(rawTargetPosition) {
 
 }
 
-
-function modbusButton1() {
-  moveToTargetPosition(100)
-  console.log("Modbus button 1");
-}
-
-function modbusButton2() {
-  moveToTargetPosition(1000)
-  console.log("Modbus button 2");
-}
-
-function modbusButton3() {
-  isMovementInterrupted = true;
-  console.log("Modbus button 3");
-}
-
-
-/////////BACNET/////////////
-
-function bacnetButton1() {
-  console.log("Bacnet button 1");
-}
-
-function bacnetButton2() {
-  console.log("Bacnet button 2");
-}
-
-function bacnetButton3() {
-  console.log("Bacnet button 3");
-}
-
-function bacnetButton4() {
-  console.log("Bacnet button 4");
-}
-
-function bacnetButton5() {
-  console.log("Bacnet button 5");
-}
-
-function bacnetSlider1(bns) {
-  console.log("Bacnet Slider 1 = " + bns);
-}
-
-function bacnetSlider2(bns) {
-  console.log("Bacnet Slider 2 = " + bns);
-}
-
 //////////////////////////////
 const clients = {};
 const users = {};
@@ -258,17 +214,18 @@ function handleMessage(message, userId) {
   else {
     const dataFromClient = JSON.parse(message.toString());
     console.log(dataFromClient)
+
     ///////////MODBUS///////////////
     if (dataFromClient.motor) {
       switch (dataFromClient.motor) {
         case 1:
-          modbusButton1();
+          moveToTargetPosition(position1)
           break;
         case 2:
-          modbusButton2();
+          moveToTargetPosition(position2)
           break;
         case 3:
-          modbusButton3();
+          isMovementInterrupted = true;
           break;
       }
     }
@@ -316,7 +273,7 @@ wsServer.on('connection', function (connection) {
 });
 
 
-// When the server is closing, you might want to close the Modbus socket as well
+// When the server is closing close the Modbus socket as well
 server.on('close', function () {
   console.log('Server is shutting down, closing Modbus TCP socket.');
   socket.end();
