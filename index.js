@@ -33,7 +33,7 @@ let isMovementInterrupted = false; //flag for stop button
 
 const max_error = 50; // Adjust this value as needed
 const max_position = 4000; // Maximum allowed position
-const min_position = 1500;   // Minimum allowed position
+const min_position = 0;   // Minimum allowed position
 const position1 = 1500;   // Low position
 const position2 = 4000;   // High posistion
 
