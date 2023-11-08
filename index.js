@@ -260,7 +260,10 @@ function handleMessage(message, userId) {
           sendCrestronMessage('DYNAMIC_PRESET_2_GO')
           break;
         case 3:
-          sendCrestronMessage = true;
+          sendCrestronMessage('SHADES_UP_GO')
+          break;
+        case 4:
+          sendCrestronMessage('SHADES_DOWN_GO')
           break;
       }
     }
