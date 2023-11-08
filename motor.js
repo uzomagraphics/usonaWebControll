@@ -1,16 +1,3 @@
-const { WebSocket, WebSocketServer } = require('ws');
-const http = require('http');
-const uuidv4 = require('uuid').v4;
-
-// Starting the server.
-const server = http.createServer();
-const wsServer = new WebSocketServer({ server });
-const port = 8000;
-server.listen(port, () => {
-  console.log(`WebSocket server is running on port ${port}`);
-});
-
-/////////MODBUS/////////////
 const modbus = require('jsmodbus');
 const net = require('net');
 const socket = new net.Socket();
@@ -19,16 +6,6 @@ const options = {
   'port': '102'
 };
 const client = new modbus.client.TCP(socket);
-// Connect the Modbus TCP socket
-socket.connect(options);
-// Error event listener for the socket
-socket.on('error', function (err) {
-  console.error('Socket encountered an error:', err.message);
-  // Depending on the error you might want to reconnect or handle it differently
-});
-
-let isMovementInterrupted = false;
-
 
 const max_error = 50; // Adjust this value as needed
 const max_position = 1000; // Maximum allowed position
@@ -41,8 +18,7 @@ function parseSignedInt16(value) {
   return value;
 }
 
-async function moveToTargetPosition(rawTargetPosition) {
-  const targetPosition = parseSignedInt16(rawTargetPosition); // Parse the target position as signed int16
+async function moveToTargetPosition(targetPosition) {
   try {
     if (targetPosition > max_position || targetPosition < min_position) {
       console.error(`Target position out of allowed range. Must be between ${min_position} and ${max_position}.`);
@@ -98,7 +74,7 @@ async function moveToTargetPosition(rawTargetPosition) {
       await client.writeSingleCoil(2, true); // Move down
       moving = true;
     }
-    while (moving && !isMovementInterrupted) {
+    while (moving) {
       // Continuously read the servo position
       let updatedPositions = (await client.readHoldingRegisters(0, 8)).response._body.valuesAsArray;
       let updatedServoValues = [updatedPositions[0], updatedPositions[2], updatedPositions[4], updatedPositions[6]].map(val => parseSignedInt16(val));
@@ -107,17 +83,6 @@ async function moveToTargetPosition(rawTargetPosition) {
       // Check if all individual positions are within the margin of error of each other
       const maxServoValue = Math.max(...updatedServoValues);
       const minServoValue = Math.min(...updatedServoValues);
-
-      // At each iteration, you can check if the movement has been interrupted
-
-      if (isMovementInterrupted) {
-        console.log("Movement has been interrupted by the user.");
-        await client.writeSingleCoil(1, false); // Stop moving up
-        await client.writeSingleCoil(2, false); // Stop moving down
-        moving = false;
-        break; // Exit the while loop
-      }
-
       if (maxServoValue - minServoValue > max_error) {
         await client.writeSingleCoil(1, false); // Stop moving up
         await client.writeSingleCoil(2, false); // Stop moving down
@@ -149,8 +114,6 @@ async function moveToTargetPosition(rawTargetPosition) {
         await client.writeSingleCoil(2, false); // Stop moving down
         moving = false;
       }
-      isMovementInterrupted = false;
-
     }
 
     console.log("Reached target position or made the best attempt.");
@@ -159,165 +122,21 @@ async function moveToTargetPosition(rawTargetPosition) {
     console.error(err);
     socket.end();
   }
-
 }
 
-
-function modbusButton1() {
-  moveToTargetPosition(100)
-  console.log("Modbus button 1");
-}
-
-function modbusButton2() {
-  moveToTargetPosition(1000)
-  console.log("Modbus button 2");
-}
-
-function modbusButton3() {
-  isMovementInterrupted = true;
-  console.log("Modbus button 3");
-}
-
-
-/////////BACNET/////////////
-
-function bacnetButton1() {
-  console.log("Bacnet button 1");
-}
-
-function bacnetButton2() {
-  console.log("Bacnet button 2");
-}
-
-function bacnetButton3() {
-  console.log("Bacnet button 3");
-}
-
-function bacnetButton4() {
-  console.log("Bacnet button 4");
-}
-
-function bacnetButton5() {
-  console.log("Bacnet button 5");
-}
-
-function bacnetSlider1(bns) {
-  console.log("Bacnet Slider 1 = " + bns);
-}
-
-function bacnetSlider2(bns) {
-  console.log("Bacnet Slider 2 = " + bns);
-}
-
-//////////////////////////////
-const clients = {};
-const users = {};
-let userActivity = [];
-
-var TD = 0;
-var TDid = '';
-
-// Event types
-const typesDef = {
-  PUBLIC_EVENT: 'public_event',
-  PRIVATE_CHANGE: 'private_event',
-  TD_EVENT: 'td_event'
-}
-
-function broadcastMessage(json, id) {
-  const data = JSON.stringify(json);
-  for (let userId in clients) {
-    if (userId != id) {
-      let client = clients[userId];
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(data);
-      }
-    }
-  };
-}
-
-setInterval(function () {
-  if (TD == 0) {
-    broadcastMessage({ 'TD': 'DOWN' }, TDid);
-  }
-  else {
-    broadcastMessage({ 'TD': 'UP' }, TDid);
-  }
-  TD = 0;
-}, 500);
-
-function handleTD(id) {
-  TD = 1;
-  TDid = id;
-}
-
-function handleMessage(message, userId) {
-  if (message == "TD_ping") {
-    handleTD(userId);
-  }
-  else {
-    const dataFromClient = JSON.parse(message.toString());
-    console.log(dataFromClient)
-    ///////////MODBUS///////////////
-    if (dataFromClient.motor) {
-      switch (dataFromClient.motor) {
-        case 1:
-          modbusButton1();
-          break;
-        case 2:
-          modbusButton2();
-          break;
-        case 3:
-          modbusButton3();
-          break;
-      }
-    }
-    broadcastMessage(dataFromClient, userId);
-  }
-
-}
-
-function handleDisconnect(userId) {
-  console.log(`${userId} disconnected.`);
-  const json = { type: typesDef.USER_EVENT };
-  const username = users[userId]?.username || userId;
-  userActivity.push(`${username} left the document`);
-  json.data = { users, userActivity };
-  delete clients[userId];
-  delete users[userId];
-}
-
-function handleConnection(id) {
-  for (let userId in clients) {
-    if (userId != id) {
-      let client = clients[userId];
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-          "new_connection": 1
-        }
-        ));
-      }
-    }
-  };
-}
-
-// New connection received
-wsServer.on('connection', function (connection) {
-  const userId = uuidv4();
-  console.log('Recieved a new connection');
-  clients[userId] = connection;
-  console.log(`${userId} connected.`);
-  handleConnection(userId);
-  //Message received
-  connection.on('message', (message) => handleMessage(message, userId));
-  //Connection closed
-  connection.on('close', () => handleDisconnect(userId));
-
-});
-
-
-// When the server is closing, you might want to close the Modbus socket as well
-server.on('close', function () {
-  console.log('Server is shutting down, closing Modbus TCP socket.');
+socket.on('connect', async function () {
+  // Grab the target position from the command line arguments
+  const target = process.argv[2]; // Assumes the format is "move ###"
+  // Extract the target position from the command
+  const targetPosition = parseInt(target.split(' ')[1], 10);
+  await moveToTargetPosition(targetPosition);
   socket.end();
 });
+
+// Process command line arguments
+const command = process.argv[2]; // Node index.js command
+if (command && command.startsWith('move ')) {
+  socket.connect(options);
+} else {
+  console.log('Usage: node index.js "move ###"');
+}
