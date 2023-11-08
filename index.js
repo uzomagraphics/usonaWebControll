@@ -10,6 +10,26 @@ server.listen(port, () => {
   console.log(`WebSocket server is running on port ${port}`);
 });
 
+///Crestron Integration
+const dgram = require('dgram');
+const crestronIP = '10.36.112.69';
+const crestronPort = 60000;
+const crestronClient = dgram.createSocket('udp4');
+
+function sendCrestronMessage(messageString) {
+  const messageWithNewline = `${messageString}\x0D`;
+  const messageBuffer = Buffer.from(messageWithNewline);
+
+  crestronClient.send(messageBuffer, 0, messageBuffer.length, crestronPort, crestronIP, (err) => {
+    if (err) {
+      console.error(`Error sending message to ${crestronIP}:${crestronPort}: ${err}`);
+    } else {
+      console.log(`Message sent to ${crestronIP}:${crestronPort}`);
+    }
+  });
+}
+
+
 /////////MODBUS client/////////////
 const modbus = require('jsmodbus');
 const net = require('net');
@@ -18,7 +38,7 @@ const options = {
   'host': '10.36.112.92',
   'port': '102'
 };
-const client = new modbus.client.TCP(socket);
+const modBusClient = new modbus.client.TCP(socket);
 
 // Connect the Modbus TCP socket
 socket.connect(options);
@@ -53,8 +73,8 @@ async function moveToTargetPosition(rawTargetPosition) {
       return;
     }
     // Check if the device is moving
-    let coil1Response = await client.readCoils(1, 1); // Coils in Modbus are 0-indexed
-    let coil2Response = await client.readCoils(2, 1);
+    let coil1Response = await modBusClient.readCoils(1, 1); // Coils in Modbus are 0-indexed
+    let coil2Response = await modBusClient.readCoils(2, 1);
     let coil1 = coil1Response.response._body.valuesAsArray[0];
     let coil2 = coil2Response.response._body.valuesAsArray[0];
 
@@ -67,7 +87,7 @@ async function moveToTargetPosition(rawTargetPosition) {
     }
 
     // Read servo positions
-    let positions = await client.readHoldingRegisters(0, 8);
+    let positions = await modBusClient.readHoldingRegisters(0, 8);
     let servoIndices = [0, 2, 4, 6];
     let servoValues = servoIndices.map(index => parseSignedInt16(positions.response._body.valuesAsArray[index]));
     let currentPosition = servoValues[0]; // Assuming first position is the current one
@@ -80,8 +100,8 @@ async function moveToTargetPosition(rawTargetPosition) {
 
     // Check if all positions have the same value (frame is level)
     if (!servoValues.every(val => val === currentPosition)) {
-      await client.writeSingleCoil(1, false); // Stop moving up
-      await client.writeSingleCoil(2, false); // Stop moving down
+      await modBusClient.writeSingleCoil(1, false); // Stop moving up
+      await modBusClient.writeSingleCoil(2, false); // Stop moving down
       console.error("Frame not level");
       return;
     }
@@ -95,15 +115,15 @@ async function moveToTargetPosition(rawTargetPosition) {
 
     let moving = false;
     if (difference > 0) {
-      await client.writeSingleCoil(1, true); // Move up
+      await modBusClient.writeSingleCoil(1, true); // Move up
       moving = true;
     } else if (difference < 0) {
-      await client.writeSingleCoil(2, true); // Move down
+      await modBusClient.writeSingleCoil(2, true); // Move down
       moving = true;
     }
     while (moving && !isMovementInterrupted) {
       // Continuously read the servo position
-      let updatedPositions = (await client.readHoldingRegisters(0, 8)).response._body.valuesAsArray;
+      let updatedPositions = (await modBusClient.readHoldingRegisters(0, 8)).response._body.valuesAsArray;
       let updatedServoValues = [updatedPositions[0], updatedPositions[2], updatedPositions[4], updatedPositions[6]].map(val => parseSignedInt16(val));
       console.log(`Servo Positions: ${updatedServoValues.join(', ')}`); // Log the updated positions
 
@@ -115,15 +135,15 @@ async function moveToTargetPosition(rawTargetPosition) {
 
       if (isMovementInterrupted) {
         console.log("Movement has been interrupted by the user.");
-        await client.writeSingleCoil(1, false); // Stop moving up
-        await client.writeSingleCoil(2, false); // Stop moving down
+        await modBusClient.writeSingleCoil(1, false); // Stop moving up
+        await modBusClient.writeSingleCoil(2, false); // Stop moving down
         moving = false;
         break; // Exit the while loop
       }
 
       if (maxServoValue - minServoValue > max_error) {
-        await client.writeSingleCoil(1, false); // Stop moving up
-        await client.writeSingleCoil(2, false); // Stop moving down
+        await modBusClient.writeSingleCoil(1, false); // Stop moving up
+        await modBusClient.writeSingleCoil(2, false); // Stop moving down
         console.error("Difference between individual servo positions exceeded the margin of error.");
         moving = false;
         continue;
@@ -131,8 +151,8 @@ async function moveToTargetPosition(rawTargetPosition) {
 
       // Check if any servo's position is outside of the allowed range adjusted for max_error
       if (updatedServoValues.some(val => val > max_position + max_error || val < min_position - max_error)) {
-        await client.writeSingleCoil(1, false); // Stop moving up
-        await client.writeSingleCoil(2, false); // Stop moving down
+        await modBusClient.writeSingleCoil(1, false); // Stop moving up
+        await modBusClient.writeSingleCoil(2, false); // Stop moving down
         console.error(`One or more servo positions are out of the allowed range plus the error margin. Must be between ${min_position - max_error} and ${max_position + max_error}.`);
         moving = false;
         continue;
@@ -142,14 +162,14 @@ async function moveToTargetPosition(rawTargetPosition) {
 
       // Check if the device has moved past the target position
       if ((difference > 0 && updatedDifference <= 0) || (difference < 0 && updatedDifference >= 0)) {
-        await client.writeSingleCoil(1, false); // Stop moving up
-        await client.writeSingleCoil(2, false); // Stop moving down
+        await modBusClient.writeSingleCoil(1, false); // Stop moving up
+        await modBusClient.writeSingleCoil(2, false); // Stop moving down
         moving = false;
         console.error("Overshot the target position. Adjusting...");
         // Optional: You can add code here to make finer adjustments if required.
       } else if (Math.abs(updatedDifference) < max_error) {
-        await client.writeSingleCoil(1, false); // Stop moving up
-        await client.writeSingleCoil(2, false); // Stop moving down
+        await modBusClient.writeSingleCoil(1, false); // Stop moving up
+        await modBusClient.writeSingleCoil(2, false); // Stop moving down
         moving = false;
       }
       isMovementInterrupted = false;
@@ -166,7 +186,7 @@ async function moveToTargetPosition(rawTargetPosition) {
 }
 
 //////////////////////////////
-const clients = {};
+const webSocketClients = {};
 const users = {};
 let userActivity = [];
 
@@ -182,11 +202,11 @@ const typesDef = {
 
 function broadcastMessage(json, id) {
   const data = JSON.stringify(json);
-  for (let userId in clients) {
+  for (let userId in webSocketClients) {
     if (userId != id) {
-      let client = clients[userId];
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(data);
+      let webSocketClient = webSocketClients[userId];
+      if (webSocketClient.readyState === WebSocket.OPEN) {
+        webSocketClient.send(data);
       }
     }
   };
@@ -229,6 +249,21 @@ function handleMessage(message, userId) {
           break;
       }
     }
+
+    ///////////Crestron///////////////
+    if (dataFromClient.crestronButton) {
+      switch (dataFromClient.crestronButton) {
+        case 1:
+          sendCrestronMessage('DYNAMIC_PRESET_1_GO');
+          break;
+        case 2:
+          sendCrestronMessage('DYNAMIC_PRESET_2_GO')
+          break;
+        case 3:
+          sendCrestronMessage = true;
+          break;
+      }
+    }
     broadcastMessage(dataFromClient, userId);
   }
 
@@ -240,16 +275,16 @@ function handleDisconnect(userId) {
   const username = users[userId]?.username || userId;
   userActivity.push(`${username} left the document`);
   json.data = { users, userActivity };
-  delete clients[userId];
+  delete webSocketClients[userId];
   delete users[userId];
 }
 
 function handleConnection(id) {
-  for (let userId in clients) {
+  for (let userId in webSocketClients) {
     if (userId != id) {
-      let client = clients[userId];
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
+      let webSocketClient = webSocketClients[userId];
+      if (webSocketClient.readyState === WebSocket.OPEN) {
+        webSocketClient.send(JSON.stringify({
           "new_connection": 1
         }
         ));
@@ -262,7 +297,7 @@ function handleConnection(id) {
 wsServer.on('connection', function (connection) {
   const userId = uuidv4();
   console.log('Recieved a new connection');
-  clients[userId] = connection;
+  webSocketClients[userId] = connection;
   console.log(`${userId} connected.`);
   handleConnection(userId);
   //Message received
