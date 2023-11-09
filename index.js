@@ -45,7 +45,7 @@ socket.connect(options);
 // Error event listener for the socket
 socket.on('error', function (err) {
   console.error('Socket encountered an error:', err.message);
-  // Depending on the error you might want to reconnect or handle it differently
+  socket.connect(options);
 });
 
 let isMovementInterrupted = false; //flag for stop button
