@@ -29,7 +29,6 @@ function sendCrestronMessage(messageString) {
   });
 }
 
-
 /////////MODBUS client/////////////
 const modbus = require('jsmodbus');
 const net = require('net');
