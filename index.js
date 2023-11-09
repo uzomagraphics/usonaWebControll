@@ -50,24 +50,26 @@ socket.on('error', function (err) {
 
 let isMovementInterrupted = false; //flag for stop button
 
-const max_error = 50; // Adjust this value as needed
-const max_position = 4000; // Maximum allowed position
-const min_position = 0;   // Minimum allowed position
-const position1 = 1500;   // Low position
-const position2 = 4000;   // High posistion
+const max_error = 100; // Adjust this value as needed
+const max_position = 42600; // Maximum allowed position
+const min_position = 21570;   // Minimum allowed position
+const position1 = 42500;   // Low position
+const position2 = 21580;   // High posistion
 
 function parseSignedInt16(value) {
-  if (value >= 0x8000) {
+  if (value >= 0xb000) {
     return value - 0x10000;
   }
   return value;
 }
 
+
 // Async function to move a Modbus-controlled device to a target position
 async function moveToTargetPosition(rawTargetPosition) {
   const targetPosition = parseSignedInt16(rawTargetPosition); // Parse the target position as signed int16
+  console.log(`Target position: ${targetPosition}`);
   try {
-    if (targetPosition > max_position || targetPosition < min_position) {
+    if (targetPosition > max_position + max_error || targetPosition < min_position - max_error) {
       console.error(`Target position out of allowed range. Must be between ${min_position} and ${max_position}.`);
       return;
     }
@@ -174,7 +176,7 @@ async function moveToTargetPosition(rawTargetPosition) {
       isMovementInterrupted = false;
 
     }
-
+    isMovementInterrupted = false;
     console.log("Reached target position or made the best attempt.");
 
   } catch (err) {
