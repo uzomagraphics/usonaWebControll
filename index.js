@@ -51,7 +51,7 @@ socket.on('error', function (err) {
 
 let isMovementInterrupted = false; //flag for stop button
 
-const max_error = 100; // Adjust this value as needed
+const max_error = 200; // Adjust this value as needed
 const max_position = 42600; // Maximum allowed position
 const min_position = 21570;   // Minimum allowed position
 const position1 = 42500;   // Low position
@@ -116,7 +116,7 @@ async function moveToTargetPosition(rawTargetPosition) {
     }
 
     let moving = false;
-    if (difference > 0) {
+    if (difference > 0 && !isMovementInterrupted) {
       await modBusClient.writeSingleCoil(1, true); // Move up
       moving = true;
     } else if (difference < 0) {
@@ -178,10 +178,15 @@ async function moveToTargetPosition(rawTargetPosition) {
 
     }
     isMovementInterrupted = false;
+    //
+    await modBusClient.writeSingleCoil(1, false); // Stop moving up
+    await modBusClient.writeSingleCoil(2, false); // Stop moving down
     console.log("Reached target position or made the best attempt.");
 
   } catch (err) {
     console.error(err);
+    await modBusClient.writeSingleCoil(1, false); // Stop moving up
+    await modBusClient.writeSingleCoil(2, false); // Stop moving down
     socket.end();
   }
 
