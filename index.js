@@ -2,9 +2,6 @@ const { WebSocket, WebSocketServer } = require('ws');
 const http = require('http');
 const uuidv4 = require('uuid').v4;
 
-const { exec } = require('child_process');
-
-
 // Starting the Websocket server.
 const server = http.createServer();
 const wsServer = new WebSocketServer({ server });
@@ -232,39 +229,21 @@ function handleTD(id) {
 }
 
 function handleMessage(message, userId) {
-  if (message === "TD_ping") {
+  if (message == "TD_ping") {
     handleTD(userId);
-  } else {
-    const dataFromClient = JSON.parse(message);
-
-    // Handle reboot action
-    if (dataFromClient.action === 'reboot') {
-      // Log the reboot action
-      console.log('Reboot command received.');
-
-      // Use the appropriate command for your operating system
-      // For Unix-like systems: 'sudo /sbin/shutdown -r now'
-      // For Windows: 'shutdown /r /t 0'
-      exec('shutdown /r /t 0', (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Reboot failed: ${error}`);
-          return;
-        }
-        console.log(`Reboot initiated: ${stdout}`);
-      });
-      return; // Early return to prevent further processing
-    }
-
-    console.log(dataFromClient);
+  }
+  else {
+    const dataFromClient = JSON.parse(message.toString());
+    console.log(dataFromClient)
 
     ///////////MODBUS///////////////
     if (dataFromClient.motor) {
       switch (dataFromClient.motor) {
         case 1:
-          moveToTargetPosition(position1);
+          moveToTargetPosition(position1)
           break;
         case 2:
-          moveToTargetPosition(position2);
+          moveToTargetPosition(position2)
           break;
         case 3:
           isMovementInterrupted = true;
@@ -279,20 +258,19 @@ function handleMessage(message, userId) {
           sendCrestronMessage('DYNAMIC_PRESET_1_GO');
           break;
         case 2:
-          sendCrestronMessage('DYNAMIC_PRESET_2_GO');
+          sendCrestronMessage('DYNAMIC_PRESET_2_GO')
           break;
         case 3:
-          sendCrestronMessage('SHADES_UP_GO');
+          sendCrestronMessage('SHADES_UP_GO')
           break;
         case 4:
-          sendCrestronMessage('SHADES_DOWN_GO');
+          sendCrestronMessage('SHADES_DOWN_GO')
           break;
       }
     }
-
-    // Broadcast message to other clients
     broadcastMessage(dataFromClient, userId);
   }
+
 }
 
 function handleDisconnect(userId) {
