@@ -317,3 +317,31 @@ server.on('close', function () {
   console.log('Server is shutting down, closing Modbus TCP socket.');
   socket.end();
 });
+
+// Function to stop the motors
+async function stopMotors() {
+  try {
+    await modBusClient.writeSingleCoil(1, false); // Stop moving up
+    await modBusClient.writeSingleCoil(2, false); // Stop moving down
+    console.log('Motors stopped successfully.');
+  } catch (err) {
+    console.error('Failed to stop motors:', err);
+  }
+}
+
+// Handle uncaught exceptions to stop the motors before crashing
+process.on('uncaughtException', async (err) => {
+  console.error('There was an uncaught error', err);
+  await stopMotors();
+  process.exit(1); // exit your app
+});
+
+// Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM, shutting down gracefully');
+  await stopMotors();
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
