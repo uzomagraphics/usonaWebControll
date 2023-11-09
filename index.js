@@ -251,6 +251,12 @@ function handleMessage(message, userId) {
       }
     }
 
+    ///////////Login/////////
+    if (dataFromClient.password === '1978')
+    {
+      broadcastMessage({'login': 'correct'});
+    }
+
     ///////////Crestron///////////////
     if (dataFromClient.crestronButton) {
       switch (dataFromClient.crestronButton) {
