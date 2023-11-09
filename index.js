@@ -1,6 +1,7 @@
 const { WebSocket, WebSocketServer } = require('ws');
 const http = require('http');
 const uuidv4 = require('uuid').v4;
+const { exec } = require('child_process');
 
 // Starting the Websocket server.
 const server = http.createServer();
@@ -255,6 +256,23 @@ function handleMessage(message, userId) {
     if (dataFromClient.password === '1978')
     {
       broadcastMessage({'login': 'correct'});
+    }
+
+    /////////REBOOT/////////
+    if (dataFromClient.action === 'reboot') {
+      // Log the reboot action
+      console.log('Reboot command received.');
+      // Use the appropriate command for your operating system
+      // For Unix-like systems: 'sudo /sbin/shutdown -r now'
+      // For Windows: 'shutdown /r /t 0'
+      exec('shutdown /r /t 0', (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Reboot failed: ${error}`);
+          return;
+        }
+        console.log(`Reboot initiated: ${stdout}`);
+      });
+      return; // Early return to prevent further processing
     }
 
     ///////////Crestron///////////////
