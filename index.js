@@ -212,8 +212,8 @@ const webSocketClients = {}; //object to store the websocket clients
 const users = {}; //object to store the users... what is diference between clients and users?
 let userActivity = []; //array to store the user activity... what is user activity?
 
-var TD = 0; //flag for TD ping
-var TDid = ''; //id of the TD that pinged
+var TDStatus = 0; //flag for TDStatus ping
+var TDid = ''; //id of the user that pinged
 
 // Event types and definitions for the websocket server
 // Not sure what this is for
@@ -236,27 +236,29 @@ function broadcastMessage(json, id) {
   };
 }
 
-
+// function to send td status to all clients every 500ms
 setInterval(function () {
-  if (TD == 0) {
+  if (TDStatus == 0) {
     broadcastMessage({ 'TD': 'DOWN' }, TDid);
   }
   else {
     broadcastMessage({ 'TD': 'UP' }, TDid);
   }
-  TD = 0;
+  TDStatus = 0;
 }, 500);
 
-function handleTD(id) {
-  TD = 1;
-  TDid = id;
-}
-
+// Handle incoming messages from clients
 function handleMessage(message, userId) {
+  // handle TDStatus ping
   if (message == "TD_ping") {
-    handleTD(userId);
+    TDStatus = 1;
+    TDid = userId;
   }
+
   else {
+    //
+    console.log(`Received message from ${userId}: ${message}`);
+
     const dataFromClient = JSON.parse(message.toString());
     console.log(dataFromClient)
 
