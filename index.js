@@ -3,6 +3,9 @@ const http = require('http');
 const uuidv4 = require('uuid').v4;
 const { exec } = require('child_process');
 
+function getCurrentTimestamp() {
+  return new Date().toISOString();
+}
 
 ////// Starting the Websocket server //////
 const server = http.createServer();
@@ -37,6 +40,7 @@ function sendCrestronMessage(messageString) {
 
 
 ///////// MODBUS client (HMI is Server) /////////////
+/// Todo open and close modbus socket when making a movement and also turn on and off the contactor
 const modbus = require('jsmodbus');
 const net = require('net');
 const modbusSocket = new net.Socket();
@@ -100,6 +104,7 @@ async function moveToTargetPosition(rawTargetPosition) {
       console.error("Device is currently moving. Not starting a new movement.");
       return;
     }
+    let moving = false;
 
     // Checks passed, start moving...
 
@@ -112,7 +117,6 @@ async function moveToTargetPosition(rawTargetPosition) {
 
 
     // Check if first servo's current position is outside of the allowed range adjusted for max_error
-    // Not sure this is working as intended should we send a stop command here?
     // Instead of just checking the currentof one we could do any on the servo values
     if (currentPosition > max_position + max_error || currentPosition < min_position - max_error) {
       console.error(`Current position is out of the allowed range plus the error margin. Must be between ${min_position - max_error} and ${max_position + max_error}.`);
@@ -120,7 +124,7 @@ async function moveToTargetPosition(rawTargetPosition) {
     }
 
     // Check if all positions have the same value (frame is level)
-    // Shouold this be higher up in the function?
+    // Should this be higher up in the function?
     if (!servoValues.every(val => val === currentPosition)) {
       console.error("Frame not level. Servo positions are not equal. Sending stop command.");
       stopMotors();
@@ -130,11 +134,10 @@ async function moveToTargetPosition(rawTargetPosition) {
     // Check the difference between the target position and the current position and exit the function if it is within the margin of error
     let difference = targetPosition - currentPosition;
     if (Math.abs(difference) < max_error) {
-      console.log("Target position is close enough to the current position. Not moving.");
+      console.log("Target position is close enough to the current position. Not moving. We are already there.");
       return;
     }
 
-    let moving = false;
     // Check if the target position is higher or lower than the current position and move accordingly
     if (difference > 0 && !isMovementInterrupted) {
       await modbusClient.writeSingleCoil(1, true); // Move up
@@ -145,12 +148,12 @@ async function moveToTargetPosition(rawTargetPosition) {
     }
 
     // While the device is moving, continuously read the servo positions and check if the movement has been flagged for interruption
-    while (moving && !isMovementInterrupted) {
+    while (moving) {
       // At each iteration can check if the movement has been flagged for interruption
       if (isMovementInterrupted) {
         console.log("Movement has been interrupted by the user.");
         stopMotors();
-        moving = false;
+        isMovementInterrupted = false; // Reset the flag
         break; // Exit the while loop
       }
 
@@ -164,20 +167,18 @@ async function moveToTargetPosition(rawTargetPosition) {
       const minServoValue = Math.min(...updatedServoValues);
 
       // Check if the difference between the max and min servo values is greater than the margin of error
-      // this is another check to see if the frame is level...
+      // this is another check to see if the frame is level
       if (maxServoValue - minServoValue > max_error) {
         console.error("Difference between individual servo positions exceeded the margin of error. Not level. Sending stop command.");
         stopMotors();
-        moving = false; //should we set this in the stop motors function?
-        continue;
+        break;
       }
 
       // Check if any servo position is outside of the allowed range
       if (updatedServoValues.some(val => val > max_position + max_error || val < min_position - max_error)) {
-        stopMotors();
         console.error(`One or more servo positions are out of the allowed range plus the error margin. Must be between ${min_position - max_error} and ${max_position + max_error}.`);
-        moving = false;
-        continue;
+        stopMotors();
+        break;
       }
 
       // store the difference between the target position and the current position of the first servo
@@ -187,46 +188,42 @@ async function moveToTargetPosition(rawTargetPosition) {
       if ((difference > 0 && updatedDifference <= 0) || (difference < 0 && updatedDifference >= 0)) {
         console.error("Overshot the target position. Stopping...");
         stopMotors();
-        moving = false;
+        break;
       } else if (Math.abs(updatedDifference) < max_error) { // Check if the device is close enough to the target position
+        console.log("Reached target position or close enough within max error. Stopping...");
         stopMotors();
-        moving = false;
+        break;
       }
-
-      isMovementInterrupted = false; //reset the flag
-
     }
-    isMovementInterrupted = false; //reset the flag do we need to do this here and above?
 
-    // We have reached the target position or the movement has been interrupted
+    // just in case the while loop is exited without stopping the motors
     stopMotors();
-    console.log("Reached target position or made the best attempt.");
 
   } catch (err) {
     console.error(err);
     stopMotors();
-    modbusSocket.end(); // I beleive this is why the motors stopped responding sometimes
   }
-
 }
 
 ////// End of Modbus client //////
 
-/////
-const webSocketClients = {};
-const users = {};
-let userActivity = [];
 
-var TD = 0;
-var TDid = '';
+const webSocketClients = {}; //object to store the websocket clients
+const users = {}; //object to store the users... what is diference between clients and users?
+let userActivity = []; //array to store the user activity... what is user activity?
 
-// Event types
+var TD = 0; //flag for TD ping
+var TDid = ''; //id of the TD that pinged
+
+// Event types and definitions for the websocket server
+// Not sure what this is for
 const typesDef = {
   PUBLIC_EVENT: 'public_event',
   PRIVATE_CHANGE: 'private_event',
   TD_EVENT: 'td_event'
 }
 
+// Broadcast a message to all connected clients except the sender
 function broadcastMessage(json, id) {
   const data = JSON.stringify(json);
   for (let userId in webSocketClients) {
@@ -238,6 +235,7 @@ function broadcastMessage(json, id) {
     }
   };
 }
+
 
 setInterval(function () {
   if (TD == 0) {
@@ -367,10 +365,11 @@ server.on('close', function () {
 });
 
 // Function to stop the motors
-async function stopMotors() {
+function stopMotors() { //Should we make this a synchronous function for safety?
   try {
-    await modbusClient.writeSingleCoil(1, false); // Stop moving up
-    await modbusClient.writeSingleCoil(2, false); // Stop moving down
+    modbusClient.writeSingleCoil(1, false); // Stop moving up
+    modbusClient.writeSingleCoil(2, false); // Stop moving down
+    moving = false;
     console.log('Motors stopped successfully.');
   } catch (err) {
     console.error('Failed to stop motors:', err);
