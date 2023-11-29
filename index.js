@@ -2,20 +2,7 @@ const { WebSocket, WebSocketServer } = require('ws');
 const http = require('http');
 const uuidv4 = require('uuid').v4;
 const { exec } = require('child_process');
-
-function getCurrentTimestamp() {
-  return new Date().toISOString();
-}
-
-////// Starting the Websocket server //////
-const server = http.createServer();
-const wsServer = new WebSocketServer({ server });
-const port = 8000;
-server.listen(port, () => {
-  console.log(`WebSocket server is running on port ${port}`);
-});
-
-
+require('log-timestamp');
 
 ////// Crestron Integration //////
 const dgram = require('dgram');
@@ -37,9 +24,7 @@ function sendCrestronMessage(messageString) {
 }
 
 
-
-
-///////// MODBUS client (HMI is Server) /////////////
+///////// MODBUS client (HMI is modbus Server) /////////////
 /// Todo open and close modbus socket when making a movement and also turn on and off the contactor
 const modbus = require('jsmodbus');
 const net = require('net');
@@ -127,7 +112,7 @@ async function moveToTargetPosition(rawTargetPosition) {
     // Should this be higher up in the function?
     if (!servoValues.every(val => val === currentPosition)) {
       console.error("Frame not level. Servo positions are not equal. Sending stop command.");
-      stopMotors();
+      await stopMotors();
       return;
     }
 
@@ -152,7 +137,7 @@ async function moveToTargetPosition(rawTargetPosition) {
       // At each iteration can check if the movement has been flagged for interruption
       if (isMovementInterrupted) {
         console.log("Movement has been interrupted by the user.");
-        stopMotors();
+        await stopMotors();
         isMovementInterrupted = false; // Reset the flag
         break; // Exit the while loop
       }
@@ -170,14 +155,14 @@ async function moveToTargetPosition(rawTargetPosition) {
       // this is another check to see if the frame is level
       if (maxServoValue - minServoValue > max_error) {
         console.error("Difference between individual servo positions exceeded the margin of error. Not level. Sending stop command.");
-        stopMotors();
+        await stopMotors();
         break;
       }
 
       // Check if any servo position is outside of the allowed range
       if (updatedServoValues.some(val => val > max_position + max_error || val < min_position - max_error)) {
         console.error(`One or more servo positions are out of the allowed range plus the error margin. Must be between ${min_position - max_error} and ${max_position + max_error}.`);
-        stopMotors();
+        await stopMotors();
         break;
       }
 
@@ -187,26 +172,34 @@ async function moveToTargetPosition(rawTargetPosition) {
       // Check if the device has moved past the target position
       if ((difference > 0 && updatedDifference <= 0) || (difference < 0 && updatedDifference >= 0)) {
         console.error("Overshot the target position. Stopping...");
-        stopMotors();
+        await stopMotors();
         break;
       } else if (Math.abs(updatedDifference) < max_error) { // Check if the device is close enough to the target position
         console.log("Reached target position or close enough within max error. Stopping...");
-        stopMotors();
+        await stopMotors();
         break;
       }
     }
 
     // just in case the while loop is exited without stopping the motors
-    stopMotors();
+    await stopMotors();
 
   } catch (err) {
     console.error(err);
-    stopMotors();
+    await stopMotors();
   }
 }
 
 ////// End of Modbus client //////
 
+
+////// Starting the Websocket server //////
+const server = http.createServer();
+const wsServer = new WebSocketServer({ server });
+const port = 8000;
+server.listen(port, () => {
+  console.log(`WebSocket server is running on port ${port}`);
+});
 
 const webSocketClients = {}; //object to store the websocket clients
 const users = {}; //object to store the users... what is diference between clients and users?
@@ -226,6 +219,10 @@ const typesDef = {
 // Broadcast a message to all connected clients except the sender
 function broadcastMessage(json, id) {
   const data = JSON.stringify(json);
+
+
+  console.log(`Broadcasting message to all clients: ${data} except ${id}`);
+
   for (let userId in webSocketClients) {
     if (userId != id) {
       let webSocketClient = webSocketClients[userId];
@@ -251,6 +248,7 @@ setInterval(function () {
 function handleMessage(message, userId) {
   // handle TDStatus ping
   if (message == "TD_ping") {
+    //console.log("TD ping received");
     TDStatus = 1;
     TDid = userId;
   }
@@ -260,7 +258,7 @@ function handleMessage(message, userId) {
     console.log(`Received message from ${userId}: ${message}`);
 
     const dataFromClient = JSON.parse(message.toString());
-    console.log(dataFromClient)
+    // console.log(dataFromClient)
 
     ///////////MODBUS///////////////
     if (dataFromClient.motor) {
@@ -273,6 +271,7 @@ function handleMessage(message, userId) {
           break;
         case 3:
           isMovementInterrupted = true;
+          console.log("Movement interrupt flag set to true");
           break;
       }
     }
@@ -280,6 +279,7 @@ function handleMessage(message, userId) {
     ///////////Login/////////
     if (dataFromClient.password === '1978') {
       broadcastMessage({ 'login': 'correct' });
+      console.log('Correct password entered.');
     }
 
     /////////REBOOT/////////
@@ -347,6 +347,8 @@ function handleConnection(id) {
 
 // New connection received
 wsServer.on('connection', function (connection) {
+  const ip = connection._socket.remoteAddress;
+  console.log(`New connection from ${ip}`);
   const userId = uuidv4();
   console.log('Recieved a new connection');
   webSocketClients[userId] = connection;
@@ -356,7 +358,6 @@ wsServer.on('connection', function (connection) {
   connection.on('message', (message) => handleMessage(message, userId));
   //Connection closed
   connection.on('close', () => handleDisconnect(userId));
-
 });
 
 
@@ -367,10 +368,10 @@ server.on('close', function () {
 });
 
 // Function to stop the motors
-function stopMotors() { //Should we make this a synchronous function for safety?
+async function stopMotors() {
   try {
-    modbusClient.writeSingleCoil(1, false); // Stop moving up
-    modbusClient.writeSingleCoil(2, false); // Stop moving down
+    await modbusClient.writeSingleCoil(1, false); // Stop moving up
+    await modbusClient.writeSingleCoil(2, false); // Stop moving down
     moving = false;
     console.log('Motors stopped successfully.');
   } catch (err) {
@@ -396,5 +397,3 @@ process.on('SIGTERM', async () => {
     process.exit(0);
   });
 });
-
-// what is the difference between "await stopMotors()" and "stopMotors()"?
