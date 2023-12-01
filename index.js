@@ -3,7 +3,7 @@ const http = require('http');
 const uuidv4 = require('uuid').v4;
 const { exec } = require('child_process');
 require('log-timestamp');
-import got from 'got';
+// import got from 'got';
 
 
 ////// Crestron Integration //////
@@ -325,13 +325,13 @@ async function handleMessage(message, userId) {
       console.log("changing source to " + dataFromClient.source);
       switch (dataFromClient.source) {
         case 1:
-          //send json to audio interface
-          const { data } = await got.post('https://httpbin.org/anything', {
-            json: {
-              hello: 'world'
-            }
-          }).json();
-          console.log(data);
+          // //send json to audio interface
+          // const { data } = await got.post('https://httpbin.org/anything', {
+          //   json: {
+          //     hello: 'world'
+          //   }
+          // }).json();
+          // console.log(data);
           break;
         case 2:
           //send json to audio interface
