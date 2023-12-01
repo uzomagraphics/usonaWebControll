@@ -3,6 +3,8 @@ const http = require('http');
 const uuidv4 = require('uuid').v4;
 const { exec } = require('child_process');
 require('log-timestamp');
+import got from 'got';
+
 
 ////// Crestron Integration //////
 const dgram = require('dgram');
@@ -22,7 +24,6 @@ function sendCrestronMessage(messageString) {
     }
   });
 }
-
 
 ///////// MODBUS client (HMI is modbus Server) /////////////
 /// Todo open and close modbus socket when making a movement and also turn on and off the contactor
@@ -219,10 +220,12 @@ const typesDef = {
 // Broadcast a message to all connected clients except the sender
 function broadcastMessage(json, id) {
   const data = JSON.stringify(json);
-
-
-  console.log(`Broadcasting message to all clients: ${data} except ${id}`);
-
+  // if if json is {"TD":"DOWN"} dont log it
+  if (data != '{"TD":"DOWN"}') {
+    if (data != '{"TD":"UP"}') {
+      console.log(`Broadcasting message to all clients: ${data} except ${id}`);
+    }
+  }
   for (let userId in webSocketClients) {
     if (userId != id) {
       let webSocketClient = webSocketClients[userId];
@@ -245,7 +248,7 @@ setInterval(function () {
 }, 500);
 
 // Handle incoming messages from clients
-function handleMessage(message, userId) {
+async function handleMessage(message, userId) {
   // handle TDStatus ping
   if (message == "TD_ping") {
     //console.log("TD ping received");
@@ -306,16 +309,45 @@ function handleMessage(message, userId) {
           sendCrestronMessage('DYNAMIC_PRESET_1_GO');
           break;
         case 2:
-          sendCrestronMessage('DYNAMIC_PRESET_2_GO')
+          sendCrestronMessage('DYNAMIC_PRESET_2_GO');
           break;
         case 3:
-          sendCrestronMessage('SHADES_UP_GO')
+          sendCrestronMessage('SHADES_UP_GO');
           break;
         case 4:
-          sendCrestronMessage('SHADES_DOWN_GO')
+          sendCrestronMessage('SHADES_DOWN_GO');
           break;
       }
     }
+
+    ///////////Source Select///////////
+    if (dataFromClient.source) {
+      console.log("changing source to " + dataFromClient.source);
+      switch (dataFromClient.source) {
+        case 1:
+          //send json to audio interface
+          const { data } = await got.post('https://httpbin.org/anything', {
+            json: {
+              hello: 'world'
+            }
+          }).json();
+          console.log(data);
+          break;
+        case 2:
+          //send json to audio interface
+          break;
+        case 3:
+          //send json to audio interface
+          break;
+        case 4:
+          //send json to audio interface
+          break;
+        case 5:
+          //send json to audio interface
+          break;
+      }
+    }
+
     broadcastMessage(dataFromClient, userId);
   }
 
