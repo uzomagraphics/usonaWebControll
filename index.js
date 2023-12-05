@@ -20,7 +20,7 @@ function sendCrestronMessage(messageString) {
     if (err) {
       console.error(`Error sending message to ${crestronIP}:${crestronPort}: ${err}`);
     } else {
-      console.log(`Message sent to ${crestronIP}:${crestronPort}`);
+      console.log(`Message sent to ${crestronIP}:${crestronPort}: ${messageString}`);
     }
   });
 }
@@ -208,6 +208,8 @@ let userActivity = []; //array to store the user activity... what is user activi
 
 var TDStatus = 0; //flag for TDStatus ping
 var TDid = ''; //id of the user that pinged
+let brightness = 100; //brightness of the sconces
+let lightsOn = true; // sconces on or off
 
 // Event types and definitions for the websocket server
 // Not sure what this is for
@@ -306,10 +308,10 @@ async function handleMessage(message, userId) {
     if (dataFromClient.crestronButton) {
       switch (dataFromClient.crestronButton) {
         case 1:
-          sendCrestronMessage('DYNAMIC_PRESET_1_GO');
+          sendCrestronMessage('CUSTOM_PRESET_1_GO');
           break;
         case 2:
-          sendCrestronMessage('DYNAMIC_PRESET_2_GO');
+          sendCrestronMessage('CUSTOM_PRESET_2_GO');
           break;
         case 3:
           sendCrestronMessage('SHADES_UP_GO');
@@ -320,32 +322,19 @@ async function handleMessage(message, userId) {
       }
     }
 
-    ///////////Source Select///////////
-    if (dataFromClient.source) {
-      console.log("changing source to " + dataFromClient.source);
-      switch (dataFromClient.source) {
-        case 1:
-          // //send json to audio interface
-          // const { data } = await got.post('https://httpbin.org/anything', {
-          //   json: {
-          //     hello: 'world'
-          //   }
-          // }).json();
-          // console.log(data);
-          break;
-        case 2:
-          //send json to audio interface
-          break;
-        case 3:
-          //send json to audio interface
-          break;
-        case 4:
-          //send json to audio interface
-          break;
-        case 5:
-          //send json to audio interface
-          break;
+    //Sconce//
+    if (dataFromClient.onOff) {
+      if (dataFromClient.onOff == "ON") {
+        sendCrestronMessage(`SCONCES_${brightness}%_GO`);
       }
+      else {
+        sendCrestronMessage(`SCONCES_0%_GO`);
+      }
+    }
+
+    if (dataFromClient.lightBrightness) {
+      brightness = dataFromClient.lightBrightness * 100;
+      if (lightsOn) sendCrestronMessage(`SCONCES_${brightness}%_GO`);
     }
 
     broadcastMessage(dataFromClient, userId);
