@@ -3,8 +3,6 @@ const http = require('http');
 const uuidv4 = require('uuid').v4;
 const { exec } = require('child_process');
 require('log-timestamp');
-// import got from 'got';
-
 
 ////// Crestron Integration //////
 const dgram = require('dgram');
@@ -386,6 +384,7 @@ wsServer.on('connection', function (connection) {
 server.on('close', function () {
   console.log('Server is shutting down, closing Modbus TCP modbusSocket.');
   modbusSocket.end();
+  //contactor off
 });
 
 // Function to stop the motors
@@ -406,6 +405,7 @@ async function stopMotors() {
 process.on('uncaughtException', async (err) => {
   console.error('There was an uncaught error', err);
   await stopMotors();
+  //contactor off
   process.exit(1); // exit your app
 });
 
@@ -413,6 +413,7 @@ process.on('uncaughtException', async (err) => {
 process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully');
   await stopMotors();
+  //contactor off
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
