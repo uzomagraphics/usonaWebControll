@@ -335,6 +335,16 @@ async function handleMessage(message, userId) {
       if (lightsOn) sendCrestronMessage(`SCONCES_${brightness}%_GO`);
     }
 
+    //Motor//
+    if (dataFromClient.motorOnOff) {
+      if (dataFromClient.motorOnOff == "ON") {
+        sendCrestronMessage(`LIFT_ON_GO`);
+      }
+      else {
+        sendCrestronMessage(`LIFT_OFF_GO`);
+      }
+    }
+
     broadcastMessage(dataFromClient, userId);
   }
 
