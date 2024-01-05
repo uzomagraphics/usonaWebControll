@@ -267,9 +267,11 @@ async function handleMessage(message, userId) {
     if (dataFromClient.motor) {
       switch (dataFromClient.motor) {
         case 1:
+          isMovementInterrupted = false;
           moveToTargetPosition(position1)
           break;
         case 2:
+          isMovementInterrupted = false;
           moveToTargetPosition(position2)
           break;
         case 3:
