@@ -47,10 +47,11 @@ modbusSocket.on('error', function (err) {
 let isMovementInterrupted = false; //flag for stop button
 
 const max_error = 200; // Adjust this value as needed
-const max_position = 42600; // Maximum allowed position
-const min_position = 21570;   // Minimum allowed position
-const position1 = 42500;   // Low position
-const position2 = 21580;   // High posistion
+
+const position1 = 20920;   // High position
+const position2 = 0;   // Low posistion
+const max_position = position1 + 100; // Maximum allowed position
+const min_position = position2 - 100;   // Minimum allowed position
 
 // Function to parse a signed int16 value from a Modbus response
 function parseSignedInt16(value) {
