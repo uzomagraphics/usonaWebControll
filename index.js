@@ -300,6 +300,9 @@ async function handleMessage(message, userId) {
     if (dataFromClient.action === 'reboot') {
       // Log the reboot action
       console.log('Reboot command received.');
+      await stopMotors(); // Stop the motors
+      sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
+
       // Use the appropriate command for your operating system
       // For Unix-like systems: 'sudo /sbin/shutdown -r now'
       // For Windows: 'shutdown /r /t 0'
