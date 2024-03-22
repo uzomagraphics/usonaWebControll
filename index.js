@@ -41,6 +41,7 @@ modbusSocket.connect(options);
 modbusSocket.on('error', function (err) {
   console.error('Modbus Socket encountered an error:', err.message);
   console.log('Attempting to reconnect every 20 seconds...');
+  sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
   modbusSocket.connect(options);
 });
 
@@ -67,6 +68,11 @@ async function moveToTargetPosition(rawTargetPosition) {
   console.log(`Target position: ${targetPosition}`);
 
   try {
+    if (motorOnOff = "OFF") {
+      console.error(`Contactors are off. Cannot move the motors. Do not start a new movement.`);
+      return;
+    }
+
     // Check if the target position is outside of the allowed range adjusted for max_error is so exit the function
     if (targetPosition > max_position + max_error || targetPosition < min_position - max_error) {
       console.error(`Target position out of allowed range. Must be between ${min_position} and ${max_position}.`);
@@ -187,6 +193,7 @@ async function moveToTargetPosition(rawTargetPosition) {
   } catch (err) {
     console.error(err);
     await stopMotors();
+    sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
   }
 }
 
@@ -397,7 +404,7 @@ wsServer.on('connection', function (connection) {
 server.on('close', function () {
   console.log('Server is shutting down, closing Modbus TCP modbusSocket.');
   modbusSocket.end();
-  //contactor off
+  sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
 });
 
 // Function to stop the motors
@@ -409,8 +416,7 @@ async function stopMotors() {
     console.log('Motors stopped successfully.');
   } catch (err) {
     console.error('Failed to stop motors:', err);
-
-    //cut off power to the motors
+    sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
   }
 }
 
@@ -418,7 +424,7 @@ async function stopMotors() {
 process.on('uncaughtException', async (err) => {
   console.error('There was an uncaught error', err);
   await stopMotors();
-  //contactor off
+  sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
   process.exit(1); // exit your app
 });
 
@@ -426,7 +432,7 @@ process.on('uncaughtException', async (err) => {
 process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully');
   await stopMotors();
-  //contactor off
+  sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
