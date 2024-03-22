@@ -68,6 +68,7 @@ async function moveToTargetPosition(rawTargetPosition) {
   console.log(`Target position: ${targetPosition}`);
 
   try {
+    // Check if the contactor is off and exit the function if so
     if (motorOnOff = "OFF") {
       console.error(`Contactors are off. Cannot move the motors. Do not start a new movement.`);
       return;
