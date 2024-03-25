@@ -71,7 +71,7 @@ async function moveToTargetPosition(rawTargetPosition) {
 
   try {
     // Check if the contactor is off and exit the function if so
-    if (motorOnOff = "OFF") {
+    if (motorOnOff === "OFF") {
       console.error(`Contactors are off. Cannot move the motors. Do not start a new movement.`);
       return;
     }
@@ -360,10 +360,12 @@ async function handleMessage(message, userId) {
       if (dataFromClient.motorOnOff == "ON") {
         sendCrestronMessage(`LIFT_ON_GO`);
         motorOnOff = "ON";
+        console.log("motorOnOff: " + motorOnOff);
       }
-      else {
+      if (dataFromClient.motorOnOff == "OFF") {
         sendCrestronMessage(`LIFT_OFF_GO`);
         motorOnOff = "OFF";
+        console.log("motorOnOff: " + motorOnOff);
       }
     }
 
