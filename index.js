@@ -42,6 +42,7 @@ modbusSocket.on('error', function (err) {
   console.error('Modbus Socket encountered an error:', err.message);
   console.log('Attempting to reconnect every 20 seconds...');
   sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
+  broadcastMessage({'motorOnOff': 'OFF'},null);
   modbusSocket.connect(options);
 });
 
@@ -195,6 +196,7 @@ async function moveToTargetPosition(rawTargetPosition) {
     console.error(err);
     await stopMotors();
     sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
+    broadcastMessage({'motorOnOff': 'OFF'},null);
   }
 }
 
@@ -235,11 +237,11 @@ function broadcastMessage(json, id) {
       console.log(`Broadcasting message to all clients: ${data} except ${id}`);
     }
   }
-  for (let userId in webSocketClients) {
-    if (userId != id) {
-      let webSocketClient = webSocketClients[userId];
-      if (webSocketClient.readyState === WebSocket.OPEN) {
-        webSocketClient.send(data);
+  for (let userId in webSocketClients) {//for each client
+    if (userId != id){//if the client is not the sender
+      let webSocketClient = webSocketClients[userId];//get the client
+      if (webSocketClient.readyState === WebSocket.OPEN) {//if the client is open
+        webSocketClient.send(data); //send the message
       }
     }
   };
@@ -302,6 +304,7 @@ async function handleMessage(message, userId) {
       console.log('Reboot command received.');
       await stopMotors(); // Stop the motors
       sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
+      broadcastMessage({'motorOnOff': 'OFF'},null);
 
       // Use the appropriate command for your operating system
       // For Unix-like systems: 'sudo /sbin/shutdown -r now'
@@ -409,6 +412,7 @@ server.on('close', function () {
   console.log('Server is shutting down, closing Modbus TCP modbusSocket.');
   modbusSocket.end();
   sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
+  broadcastMessage({'motorOnOff': 'OFF'},null);
 });
 
 // Function to stop the motors
@@ -421,6 +425,7 @@ async function stopMotors() {
   } catch (err) {
     console.error('Failed to stop motors:', err);
     sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
+    broadcastMessage({'motorOnOff': 'OFF'},null);
   }
 }
 
@@ -429,6 +434,7 @@ process.on('uncaughtException', async (err) => {
   console.error('There was an uncaught error', err);
   await stopMotors();
   sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
+  broadcastMessage({'motorOnOff': 'OFF'},null);
   process.exit(1); // exit your app
 });
 
@@ -437,6 +443,7 @@ process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully');
   await stopMotors();
   sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
+  broadcastMessage({'motorOnOff': 'OFF'},null);
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
