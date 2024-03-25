@@ -3,6 +3,7 @@ const http = require('http');
 const uuidv4 = require('uuid').v4;
 const { exec } = require('child_process');
 require('log-timestamp');
+let motorOnOff = "OFF"; //flag for motor on or off
 
 ////// Crestron Integration //////
 const dgram = require('dgram');
@@ -197,6 +198,7 @@ async function moveToTargetPosition(rawTargetPosition) {
     await stopMotors();
     sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
     broadcastMessage({'motorOnOff': 'OFF'},null);
+    motorOnOff = "OFF";
   }
 }
 
@@ -305,6 +307,7 @@ async function handleMessage(message, userId) {
       await stopMotors(); // Stop the motors
       sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
       broadcastMessage({'motorOnOff': 'OFF'},null);
+      motorOnOff = "OFF";
 
       // Use the appropriate command for your operating system
       // For Unix-like systems: 'sudo /sbin/shutdown -r now'
@@ -356,9 +359,11 @@ async function handleMessage(message, userId) {
     if (dataFromClient.motorOnOff) {
       if (dataFromClient.motorOnOff == "ON") {
         sendCrestronMessage(`LIFT_ON_GO`);
+        motorOnOff = "ON";
       }
       else {
         sendCrestronMessage(`LIFT_OFF_GO`);
+        motorOnOff = "OFF";
       }
     }
 
@@ -413,6 +418,8 @@ server.on('close', function () {
   modbusSocket.end();
   sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
   broadcastMessage({'motorOnOff': 'OFF'},null);
+  motorOnOff = "OFF";
+
 });
 
 // Function to stop the motors
@@ -426,6 +433,7 @@ async function stopMotors() {
     console.error('Failed to stop motors:', err);
     sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
     broadcastMessage({'motorOnOff': 'OFF'},null);
+    motorOnOff = "OFF";
   }
 }
 
@@ -444,6 +452,7 @@ process.on('SIGTERM', async () => {
   await stopMotors();
   sendCrestronMessage(`LIFT_OFF_GO`); //contactor off
   broadcastMessage({'motorOnOff': 'OFF'},null);
+  motorOnOff = "OFF";
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
